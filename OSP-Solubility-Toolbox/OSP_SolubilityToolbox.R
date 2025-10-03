@@ -620,17 +620,19 @@ server <- function(input, output, session) {
     IE.Ki    <- input$IE.Ki
     C.H2O    <- 55.56 # Temperature dependent
     
-    # Load observed aqueous & biorelevant solubility data:
-    req(input$obs.file)
-    obs.aq  <- read.xlsx(input$obs.file$datapath,sheet="Observed.Aqueous")
-    obs.aq  <- data.frame(apply(obs.aq,MARGIN = 2,trimws,"both"),stringsAsFactors = FALSE)
+    # Initialize observed data variables
+    obs.aq <- NULL
+    obs.br <- NULL
     
-    obs.br  <- read.xlsx(input$obs.file$datapath,sheet="Observed.Biorelevant")
-    obs.br  <- data.frame(apply(obs.br,MARGIN = 2,trimws,"both"),stringsAsFactors = FALSE)
-    
-    # Make API properties non-editable after data import
-    observeEvent(input$obs.file, {
-      # Disable the input fields
+    # Load observed aqueous & biorelevant solubility data if file load is triggered:
+    if (!is.null(input$obs.file)) {
+      obs.aq  <- read.xlsx(input$obs.file$datapath,sheet="Observed.Aqueous")
+      obs.aq  <- data.frame(apply(obs.aq,MARGIN = 2,trimws,"both"),stringsAsFactors = FALSE)
+      
+      obs.br  <- read.xlsx(input$obs.file$datapath,sheet="Observed.Biorelevant")
+      obs.br  <- data.frame(apply(obs.br,MARGIN = 2,trimws,"both"),stringsAsFactors = FALSE)
+      
+      # Make API properties non-editable after data import
       shinyjs::disable("API")
       shinyjs::disable("LogP")
       shinyjs::disable("MW.API")
@@ -641,26 +643,27 @@ server <- function(input, output, session) {
       shinyjs::addClass("LogP", "input-disabled")
       shinyjs::addClass("MW.API", "input-disabled")
       shinyjs::addClass("MW.unit", "input-disabled")
-    })
+      
+    }
     
     # Source helper functions
     source("SolubilityFunctionsExport.R", local = T)
 
     # Solubility unit conversion calculations
-    S_ref <- getUnitFactor.ref.f(ref_unit)*ref_sol
-    S_int <- getUnitFactor.int.f(int_unit)*int_sol
+    S_ref <- getUnitFactor.ref.f(ref_unit) * ref_sol
+    S_int <- getUnitFactor.int.f(int_unit) * int_sol
     
-    aq.num <- c("Obs.aq.sol","pH.final")
-    obs.aq[aq.num] <- sapply(obs.aq[aq.num],as.numeric)
-    obs.aq <- getUnitFactor.aq.f(obs.aq)
-    obs.aq$aq.S_mg.ml <- obs.aq$Obs.aq.sol*obs.aq$factor
+    # Proceed with plotting
+    pH.range <- 1:14
+    df <- data.frame(pH.range)
     
-    br.num <- c("Obs.BR.sol","pH.BR","BS_mM")
-    obs.br[br.num] <- sapply(obs.br[br.num],as.numeric)
-    obs.br <- getUnitFactor.br.f(obs.br)
-    obs.br$BR.S_mg.ml <- obs.br$Obs.BR.sol*obs.br$factor
-    
-    
+    # Call the plotting function with or without observed data
+    aq.plot <- aq.plot.f(df, pH.range, obs.aq)  # Pass obs.aq if available
+    vals$p1 <- aq.plot
+    output$InitialAqSol <- renderPlot({
+      return(aq.plot)
+    })
+
     #### Generate output ####
     # Observed solubility table, based on input$obs.file and selected display sheet 
     output$observed <- renderTable({
@@ -688,14 +691,20 @@ server <- function(input, output, session) {
     output$InitialAqSol <- renderPlot({
       pH.range <- 1:14
       df <- data.frame(pH.range)
-      aq.plot <- aq.polt.f(df,pH.range)
+      
+      # Call the plotting function with or without observed data
+      aq.plot <- aq.plot.f(df, pH.range, obs.aq)  # Pass obs.aq if available
       vals$p1 <- aq.plot
       return(aq.plot)
-    })
+    }) 
     
     # Estimate SG and intrinsic solubility using nls() function and observed data and generate output
     output$SG.tab <- renderTable({
-      SG.Est.f()$t
+      if (!is.null(obs.aq)) {
+        SG.Est.f()$t
+      } else {
+        data.frame(Message = "No observed data loaded. Please upload data to fit the model.")
+      }
     })
     
     output$downloadAQpred <- downloadHandler(

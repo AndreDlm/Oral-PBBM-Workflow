@@ -93,7 +93,7 @@ I.Sol.f <- function(pH.range) {
                   (1-if(CT0 != 0){1/(1+10^(CT0*(pKa0-pH.range)))}else{1}) * (1-if(CT1 != 0){1/(1+10^(CT1*(pKa1-pH.range)))}else{1}) * (1-if(CT2 != 0){1/(1+10^(CT2*(pKa2-pH.range)))}else{1})/base^max(CT0+CT1+CT2,-CT0-CT1-CT2))))
 }
 
-aq.polt.f <- function(df,pH.range) {
+aq.plot.f <- function(df, pH.range, obs.aq = NULL) {
   p <- ggplot(df,aes(pH.range)) +
     theme(
       axis.line = element_line(colour = "black", linewidth = 1, linetype = "solid"),
@@ -112,13 +112,18 @@ aq.polt.f <- function(df,pH.range) {
       plot.subtitle = element_text(size = 16,hjust = 0.5),
       plot.margin=unit(c(.4,.4,.2,.5), 'cm')) +
     stat_function(fun=I.Sol.f)+
-    geom_point(data = obs.aq, aes(x=pH.final,y=aq.S_mg.ml),stroke = 1.5, color= "blue") +
     scale_x_continuous(breaks = pH.range, labels = pH.range) +
     scale_y_log10()+
-    labs(title = paste0("Observed vs. predicted Aqueous Solubility"),
+    labs(title = paste0("Predicted Aqueous Solubility"),
          subtitle = paste0(API),
          x = "Medium pH",
          y = "Log10(Solubility [mg/mL])")
+  
+  # Only add observed data points if obs.aq is provided
+  if (!is.null(obs.aq)) {
+    p <- p + geom_point(data = obs.aq, aes(x = pH.final, y = aq.S_mg.ml), stroke = 1.5, color = "blue")
+  }
+  
   return(p)
 }
 
